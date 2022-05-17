@@ -28,6 +28,6 @@ pktmon etl2pcap file.etl
 ```
 pktmon start --capture --pkt-size 0 --log-mode multi-file
 ```
-The Zero in -p means to log all packets no matter the size.
+The Zero in --pkt-size means to log all packets no matter the size.
 
-The Multi-File in -l means to create a new file when the max file size has reached. By default it does in circular logging which means it'll overwrite old entries when the max file size has been reached (default is 512MB)
+The Multi-File in --log-mode means to create a new file when the max file size has reached. By default it does in circular logging which means it'll overwrite old entries when the max file size has been reached (default is 512MB)
