@@ -26,7 +26,7 @@ pktmon pcapnt file.etl
 
 ### To write file without circular logging
 ```
-write here for something something multi-file
+pktmon start --capture --pkt-size 0 --log-mode multi-file
 ```
 The Zero in -p means to log all packets no matter the size.
 
