@@ -1,6 +1,6 @@
 # pktmon
 
-pktmon is a built in utility to capture network packets. By default the program saves the file with the name of Pktmon.etl. Also the program can only write 
+pktmon is a built in utility to capture network packets. By default the program saves the file with the name of Pktmon.etl. By default the program can only write up to 512 MB and will overwrite old entries once it reaches its max file size.
 
 ## My Useful Commands:
 
