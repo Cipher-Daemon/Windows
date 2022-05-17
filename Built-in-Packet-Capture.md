@@ -19,9 +19,9 @@ pktmon start -c -f c:\path\to\file.etl
 pktmon stop
 ```
 
-### To convert an etl file to pcap file:
+### To convert an etl file to pcapng file:
 ```
-pktmon pcapnt file.etl
+pktmon etl2pcap file.etl
 ```
 
 ### To write file without circular logging
