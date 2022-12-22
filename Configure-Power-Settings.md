@@ -26,7 +26,7 @@ Power Scheme GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)
 ```
 ## Syntax
 
-For AC (plugged into a wall outlet) you will use the /SETACVALUEINDEX flag swithc (for DC/Battery settings you just replace AC with DC for that switch)
+For AC (plugged into a wall outlet) you will use the /SETACVALUEINDEX flag swithc (for DC/Battery you'll use the /SETDCVALUEINDEX)
 
 ```
 powercfg /SETACVALUEINDEX [Power scheme GUID/Alias] [Sub GUID/Alias] [Power setting GUID/Alias}
