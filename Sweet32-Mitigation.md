@@ -3,7 +3,7 @@
 ```powershell
 $Ciphers = (Get-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\Cryptography\Configuration\Local\SSL\00010002 -Name Functions).Functions
 
-$DESCheck = $Ciphers |?{$_ -like "*DES*"}
+$DESCheck = $Ciphers |?{$_ -like "*DES*" -and $_ -like "*RC4*"}
 
 if ($DESCheck.count -eq 0){
     write-host "No DES Cipher Variants Found! Exiting!"
