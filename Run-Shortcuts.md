@@ -1,3 +1,4 @@
 # Run Shortcuts
 
-sysdm.cpl - Workgroup/domain info
+- sysdm.cpl - Workgroup/domain info
+- virtmgmt.msc - Hyper-V Manager
