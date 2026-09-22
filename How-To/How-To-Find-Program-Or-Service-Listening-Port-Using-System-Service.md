@@ -8,8 +8,22 @@ You find a listening port but its using system (PID 4) so how to find out what i
 
 Use `netsh http show servicestate`
 
+Copy
+```
+netsh http show servicestate
+```
+
 One result
 <img width="969" height="846" alt="image" src="https://github.com/user-attachments/assets/967933c6-4a91-4f36-9ed0-1c20657b0190" />
 
 Another result (from same command)
 <img width="1301" height="557" alt="image" src="https://github.com/user-attachments/assets/57b7ef33-3a2b-430c-8281-8004f250776e" />
+
+## Example 2
+
+you can also use `netsh http show urlacl`
+
+Copy
+```
+netsh http show urlacl
+```
