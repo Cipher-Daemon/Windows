@@ -12,7 +12,10 @@ Copy
 ```
 netsh http show servicestate
 ```
-
+or
+```
+netsh http show servicestate view=requestq
+```
 One result
 <img width="969" height="846" alt="image" src="https://github.com/user-attachments/assets/967933c6-4a91-4f36-9ed0-1c20657b0190" />
 
