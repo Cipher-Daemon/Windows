@@ -32,7 +32,7 @@ netsh http show urlacl
 ```
 
 ## Example 3 More Detail
-If process parent goes all the way up to system from below command
+If process parent goes all the way up to services.exe as parent process based from below command
 
 ```powershell
 Get-CimInstance Win32_Process -Filter "ProcessId = $PIDFound" |Select-Object Name, ProcessId, ParentProcessId, ExecutablePath, CommandLine |fl
