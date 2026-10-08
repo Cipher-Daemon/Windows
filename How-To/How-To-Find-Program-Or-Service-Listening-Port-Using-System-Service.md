@@ -30,3 +30,16 @@ Copy
 ```
 netsh http show urlacl
 ```
+
+## Example 3 More Detail
+If process parent goes all the way up to system from below command
+
+```powershell
+Get-CimInstance Win32_Process -Filter "ProcessId = $PIDFound" |Select-Object Name, ProcessId, ParentProcessId, ExecutablePath, CommandLine |fl
+```
+Run this
+```batch
+tasklist /svc | findstr [STRING_OF_IMAGE_FILE]
+```
+
+Open `Services.msc` look for the service name and look under dependencies.
