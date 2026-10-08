@@ -8,5 +8,10 @@ $Port = read-host "Listening port (TCP)"
 $Connection = Get-NetTCPConnection -LocalPort $Port -State Listen
 $PIDFound = $Connection.OwningProcess
  
-Get-CimInstance Win32_Process -Filter "ProcessId = $PIDFound" |Select-Object ProcessId, ParentProcessId, ExecutablePath, CommandLine |fl
+Get-CimInstance Win32_Process -Filter "ProcessId = $PIDFound" |Select-Object Name, ProcessId, ParentProcessId, ExecutablePath, CommandLine |fl
+```
+
+One Liner
+```powershell
+$Port = read-host "Listening port (TCP)";$Connection = Get-NetTCPConnection -LocalPort $Port -State Listen;$PIDFound = $Connection.OwningProcess;Get-CimInstance Win32_Process -Filter "ProcessId = $PIDFound" |Select-Object Name, ProcessId, ParentProcessId, ExecutablePath, CommandLine |fl
 ```
