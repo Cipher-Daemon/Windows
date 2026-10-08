@@ -35,7 +35,7 @@ netsh http show urlacl
 If process parent goes all the way up to services.exe as parent process based from below command
 
 ```powershell
-Get-CimInstance Win32_Process -Filter "ProcessId = $PIDFound" |Select-Object Name, ProcessId, ParentProcessId, ExecutablePath, CommandLine |fl
+$PID = read-host "PID? ";Get-CimInstance Win32_Process -Filter "ProcessId = $PID" |Select-Object Name, ProcessId, ParentProcessId, ExecutablePath, CommandLine |fl
 ```
 Run this
 ```batch
