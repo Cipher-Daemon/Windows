@@ -13,9 +13,14 @@ Copy
 netsh http show servicestate
 ```
 or
+> [!TIP]
+> This command seems more useful on figuring out what program is running system based on the listening port.
+
 ```
 netsh http show servicestate view=requestq
 ```
+
+
 One result
 <img width="969" height="846" alt="image" src="https://github.com/user-attachments/assets/967933c6-4a91-4f36-9ed0-1c20657b0190" />
 
@@ -32,11 +37,13 @@ netsh http show urlacl
 ```
 
 ## Example 3 More Detail
-If process parent goes all the way up to services.exe as parent process based from below command
+Use the output from the netsh command and plug in the PID below to find more details such as Name, Process ID, Parent ProcessID, executable path, command line
 
 ```powershell
 $FoundPID = read-host "PID? ";Get-CimInstance Win32_Process -Filter "ProcessId = $FoundPID" |Select-Object Name, ProcessId, ParentProcessId, ExecutablePath, CommandLine |fl
 ```
+
+If process seems vague and parent goes all the way up to services.exe, run the below command and the name of the child exe from parent
 Run this
 ```batch
 tasklist /svc | findstr [STRING_OF_IMAGE_FILE]
