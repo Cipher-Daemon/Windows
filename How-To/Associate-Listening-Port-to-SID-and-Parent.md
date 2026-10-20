@@ -25,7 +25,7 @@ Continuous
 ```powershell
 while ($True){$Port = read-host "Listening port (TCP)";if ($port.length -eq 0) {return};$Connection = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorVariable Notfound -ErrorAction SilentlyContinue ;if($NotFound){write-host "Nothing found";continue}else{$PIDFound = $Connection.OwningProcess;Get-CimInstance Win32_Process -Filter "ProcessId = $PIDFound" |Select-Object Name, ProcessId, ParentProcessId, ExecutablePath, CommandLine |fl}}
 ```
-# To Do
+# To Do :hammer_and_wrench:
 - [ ] \(Required) Fix or add logic to only use the first index object in an array to prevent syntax errors when its using the `Get-NetTCPConnection` command.
   - [ ] Additionally add a error variable and error action to `silentlycontinue` if `Get-NetTCPConnection` comes back with nothing.
 - [ ] \(Optional but nice to have) when above is added, add logic if `Get-NetTCPConnection` comes back with multiple results to display and select.
