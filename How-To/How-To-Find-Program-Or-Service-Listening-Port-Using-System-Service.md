@@ -51,5 +51,5 @@ tasklist /svc | findstr [STRING_OF_IMAGE_FILE]
 
 Open `Services.msc` look for the service name and look under dependencies.
 
-# To Do :wrench:
+# To Do :hammer_and_wrench:
 - [ ] Help make example 3 more clear.
