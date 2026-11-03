@@ -54,6 +54,12 @@ tasklist /svc | findstr [STRING_OF_IMAGE_FILE]
 
 Open `Services.msc` look for the service name and look under dependencies.
 
+Alternatively you can also do this if having issues based to find the service name if it has an obscure name:
+
+```powershell
+Get-CimInstance Win32_Service |Select-Object DisplayName, Name, PathName |Sort-Object DisplayName
+```
+
 Also find child programs based on process id:
 
 ```powershell
