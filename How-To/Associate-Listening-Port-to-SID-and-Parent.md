@@ -28,6 +28,12 @@ Continuous
 ```powershell
 while ($True){$Port = read-host "Listening port (TCP)";if ($port.length -eq 0) {return};$Connection = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorVariable Notfound -ErrorAction SilentlyContinue ;if($NotFound){write-host "Nothing found";continue}else{$Connection = $Connection[0];$PIDFound = $Connection.OwningProcess;Get-CimInstance Win32_Process -Filter "ProcessId = $PIDFound" |Select-Object Name, ProcessId, ParentProcessId, ExecutablePath, CommandLine |fl}}
 ```
+
+Basic netsh
+
+```powershell
+$ListeningPort = read-host "Listening Port?";$ListeningPort = ":" + $ListeningPort;netsh -aon|findstr $ListeningPort
+```
 # To Do :hammer_and_wrench:
 - [ ] \(Required) Fix or add logic to only use the first index object in an array to prevent syntax errors when its using the `Get-NetTCPConnection` command.
   - [ ] Additionally add a error variable and error action to `silentlycontinue` if `Get-NetTCPConnection` comes back with nothing.
