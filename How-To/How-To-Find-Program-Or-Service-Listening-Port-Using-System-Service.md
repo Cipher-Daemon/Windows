@@ -54,4 +54,10 @@ tasklist /svc | findstr [STRING_OF_IMAGE_FILE]
 
 Open `Services.msc` look for the service name and look under dependencies.
 
+Also find child programs based on process id:
+
+```powershell
+[int]$ParentPID = read-host "Parent Process ID?"
+Get-CimInstance Win32_Process -Filter "ParentProcessId = $ParentPid" |Select-Object ProcessId, Name, CommandLine
+```
 
