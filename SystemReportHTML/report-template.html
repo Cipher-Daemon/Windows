@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Windows System Report</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#111a2b;--panel2:#182338;--text:#e7edf7;--muted:#98a7bd;--line:#34445f;--accent:#60a5fa;--good:#34d399;--warn:#fbbf24;--bad:#fb7185}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#08101d,#0f1a2c);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}.app{max-width:1400px;margin:auto;padding:24px}.panel{background:rgba(17,26,43,.96);border:1px solid #273550;border-radius:14px;padding:18px;box-shadow:0 14px 40px #0005;margin-bottom:16px}h1{margin:0 0 6px;font-size:24px}h2{margin:0;font-size:18px}p{margin:5px 0;color:var(--muted)}.input-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}.drop{border:2px dashed #3b4e6c;border-radius:12px;padding:18px;text-align:center;background:#0c1525;transition:.2s}.drop.drag{border-color:var(--accent);background:#10223c}input[type=file]{max-width:100%}textarea{width:100%;min-height:120px;resize:vertical;background:#0a1322;color:#dce8f8;border:1px solid #33435d;border-radius:9px;padding:10px;font-family:Consolas,monospace}.toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:12px}.toolbar input[type=search]{min-width:200px;flex:1;background:#0a1322;color:var(--text);border:1px solid #33435d;border-radius:8px;padding:9px 11px}button{background:#253552;color:var(--text);border:1px solid #3c5277;border-radius:8px;padding:8px 12px;cursor:pointer}button:hover{background:#304568}.primary{background:#1d4f86;border-color:#3479bd}.check{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}#status{min-height:22px;margin-top:9px;color:var(--muted)}#status.ok{color:var(--good)}#status.error{color:var(--bad)}#status.warn{color:var(--warn)}.metadata{margin-top:10px;color:var(--muted);font-size:12px}.section-heading{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.section-meta{color:var(--muted);font-size:12px}.section-controls{display:flex;align-items:center;gap:9px}.section-toggle{padding:5px 9px;font-size:12px}.hidden{display:none!important}.empty{color:var(--muted);padding:24px;text-align:center}.section-description{margin-top:4px}.section-body{margin-top:12px}.table-wrap{overflow:auto;border:1px solid #263650;border-radius:9px;max-height:680px}.data-table{width:100%;border-collapse:collapse;min-width:560px}.data-table th,.data-table td{padding:9px 11px;border-bottom:1px solid #263650;text-align:left;vertical-align:top;overflow-wrap:anywhere}.data-table th{position:sticky;top:0;background:#1b2a42;color:#cfe0f7;font-weight:650;z-index:1}.data-table tr:nth-child(even) td{background:#101b2d}.data-table tr:hover td{background:#1a2a42}.mono{font-family:Consolas,"Courier New",monospace;color:#cdddff}.pre-output{margin:0;padding:14px;background:#080f1b;border:1px solid #263650;border-radius:9px;overflow:auto;max-height:680px;white-space:pre;font:12px/1.5 Consolas,"Courier New",monospace;color:#cdddff}.error-box{padding:12px;border:1px solid #74404a;background:#2a1720;color:#ffc5ce;border-radius:9px;white-space:pre-wrap}.tree{overflow:auto}.tree ul{list-style:none;margin:0;padding-left:24px;border-left:1px solid var(--line)}.tree>ul{padding-left:0;border:0}.node{margin:7px 0}.node-row{display:flex;align-items:flex-start;gap:7px;background:var(--panel2);border:1px solid #2b3a55;border-radius:9px;padding:8px 10px}.node-row.match{outline:2px solid var(--warn);background:#332b17}.twisty{width:25px;min-width:25px;padding:2px 5px;background:transparent;border:0;font-size:15px}.twisty.blank{visibility:hidden}.node-info{min-width:0;flex:1}.headline{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.name{font-weight:700;color:#f4f7fb}.pid{color:#9ecbff;font-family:Consolas,monospace}.ppid{color:var(--muted);font-family:Consolas,monospace}.detail{margin-top:5px;overflow-wrap:anywhere}.label{color:#8fa3bf;font-weight:600;margin-right:6px}.cmd{margin-top:6px;padding:7px;background:#0a1322;border-radius:7px;border:1px solid #263650;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;max-width:100%}.badge{font-size:12px;color:#111827;background:var(--warn);border-radius:999px;padding:1px 7px}.invalid{border-color:#6b4a27}.invalid .name{color:var(--warn)}@media(max-width:760px){.input-grid{grid-template-columns:1fr}.app{padding:12px}.panel{padding:13px}.tree ul{padding-left:13px}.node-row{padding:7px}.table-wrap{max-height:560px}}
+</style>
+</head>
+<body>
+<main class="app">
+<section class="panel">
+  <h1>Windows System Report</h1>
+  <p>Report data is embedded in this file and stays in your browser. You can also load or paste a JSON report.</p>
+  <div id="reportMetadata" class="metadata"></div>
+  <div class="input-grid">
+    <div id="dropZone" class="drop"><strong>Select or drop a JSON report</strong><br><br><input id="fileInput" type="file" accept="application/json,.json"></div>
+    <div><label for="jsonText"><strong>Or paste JSON</strong></label><textarea id="jsonText" spellcheck="false" placeholder="Paste a report JSON object here"></textarea></div>
+  </div>
+  <div class="toolbar">
+    <button id="renderPaste" class="primary">Render pasted JSON</button>
+    <button id="clearAll">Clear</button>
+  </div>
+  <div id="status" role="status" aria-live="polite">Checking for embedded report data...</div>
+</section>
+<div id="sectionsContainer"></div>
+</main>
+
+<script id="embeddedData" type="application/octet-stream">__REPORT_DATA_BASE64__</script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+
+function setStatus(message, type = '') {
+  const status = $('status');
+  status.textContent = message;
+  status.className = type;
+}
+function displayValue(value) {
+  if (value === null || value === undefined || value === '') return 'Not available';
+  if (typeof value === 'object') {
+    try { return JSON.stringify(value); } catch (_) { return String(value); }
+  }
+  return String(value);
+}
+function decodeBase64Utf8(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+function createElement(tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  if (text !== undefined && text !== null) element.textContent = String(text);
+  return element;
+}
+function createSectionCard(section, key) {
+  const panel = createElement('section', 'panel');
+  panel.dataset.sectionKey = key;
+  const heading = createElement('div', 'section-heading');
+  const textGroup = createElement('div');
+  textGroup.appendChild(createElement('h2', '', section.Title || humanize(key)));
+  if (section.Description) textGroup.appendChild(createElement('p', 'section-description', section.Description));
+  heading.appendChild(textGroup);
+  const controls = createElement('div', 'section-controls');
+  const meta = createElement('span', 'section-meta', '');
+  controls.appendChild(meta);
+  const body = createElement('div', 'section-body');
+  const toggle = createElement('button', 'section-toggle', 'Collapse');
+  toggle.type = 'button';
+  toggle.setAttribute('aria-expanded', 'true');
+  toggle.addEventListener('click', () => {
+    const collapsed = body.classList.toggle('hidden');
+    toggle.textContent = collapsed ? 'Expand' : 'Collapse';
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+  });
+  controls.appendChild(toggle);
+  heading.appendChild(controls);
+  panel.appendChild(heading);
+  panel.appendChild(body);
+  return { panel, body, meta };
+}
+function humanize(key) {
+  return String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ');
+}
+function normalizeSection(key, value) {
+  if (value && typeof value === 'object' && !Array.isArray(value) && Object.prototype.hasOwnProperty.call(value, 'Data') && value.Type) {
+    return value;
+  }
+  if (key === 'ProcessTree') return { Title: 'Process Tree', Type: 'processTree', Data: value };
+  if (key === 'Netstat') return { Title: 'Network Connections (netstat -ano)', Type: 'text', Data: value };
+  return { Title: humanize(key), Type: 'table', Data: value };
+}
+
+// ---------------------------------------------------------------------------
+// Generic renderer: any section with Type='table' is searchable and rendered
+// automatically. Columns can be supplied from PowerShell or inferred from data.
+// ---------------------------------------------------------------------------
+function renderTable(body, meta, data, declaredColumns) {
+  const rows = Array.isArray(data) ? data : (data == null ? [] : [data]);
+  const firstObject = rows.find(row => row && typeof row === 'object' && !Array.isArray(row));
+  let columns = Array.isArray(declaredColumns) ? declaredColumns : [];
+  if (columns.length) {
+    columns = columns.map(column => typeof column === 'string'
+      ? { Key: column, Label: column }
+      : { Key: column.Key || column.key, Label: column.Label || column.label || column.Key || column.key });
+  } else if (firstObject) {
+    columns = Object.keys(firstObject).map(key => ({ Key: key, Label: key }));
+  } else {
+    columns = [{ Key: 'Value', Label: 'Value' }];
+  }
+
+  if (!rows.length) {
+    body.appendChild(createElement('div', 'empty', 'No data was returned for this section.'));
+    meta.textContent = '0 rows';
+    return;
+  }
+
+  const toolbar = createElement('div', 'toolbar');
+  const search = createElement('input');
+  search.type = 'search';
+  search.placeholder = 'Filter this section...';
+  search.setAttribute('aria-label', 'Filter ' + (body.closest('[data-section-key]')?.dataset.sectionKey || 'section'));
+  toolbar.appendChild(search);
+  const count = createElement('span', 'section-meta', '');
+  toolbar.appendChild(count);
+  body.appendChild(toolbar);
+
+  const wrap = createElement('div', 'table-wrap');
+  const table = createElement('table', 'data-table');
+  const thead = createElement('thead');
+  const headerRow = createElement('tr');
+  columns.forEach(column => headerRow.appendChild(createElement('th', '', column.Label)));
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+  const tbody = createElement('tbody');
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  body.appendChild(wrap);
+
+  function update() {
+    const query = search.value.trim().toLowerCase();
+    const filtered = query ? rows.filter(row => displayValue(row).toLowerCase().includes(query)) : rows;
+    tbody.replaceChildren();
+    filtered.forEach(row => {
+      const tr = createElement('tr');
+      columns.forEach(column => {
+        let value;
+        if (column.Key === 'Value' && (row === null || typeof row !== 'object')) value = row;
+        else value = row == null ? null : row[column.Key];
+        const td = createElement('td', '', displayValue(value));
+        if (typeof value === 'string' && (value.includes('\\') || value.length > 45)) td.classList.add('mono');
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    count.textContent = `${filtered.length.toLocaleString()} of ${rows.length.toLocaleString()} rows`;
+    meta.textContent = `${rows.length.toLocaleString()} rows`;
+    if (!filtered.length) {
+      const tr = createElement('tr');
+      const td = createElement('td', 'empty', 'No matching rows.');
+      td.colSpan = columns.length;
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    }
+  }
+  search.addEventListener('input', update);
+  update();
+}
+
+function renderText(body, meta, data) {
+  const raw = Array.isArray(data) ? data.join('\n') : displayValue(data);
+  const toolbar = createElement('div', 'toolbar');
+  const search = createElement('input');
+  search.type = 'search';
+  search.placeholder = 'Filter text output...';
+  search.setAttribute('aria-label', 'Filter text output');
+  toolbar.appendChild(search);
+  body.appendChild(toolbar);
+  const output = createElement('pre', 'pre-output');
+  body.appendChild(output);
+  const lines = raw.split(/\r?\n/);
+  function update() {
+    const query = search.value.trim().toLowerCase();
+    const visible = query ? lines.filter(line => line.toLowerCase().includes(query)) : lines;
+    output.textContent = visible.join('\n') || 'No matching lines.';
+    meta.textContent = `${visible.length.toLocaleString()} of ${lines.length.toLocaleString()} lines`;
+  }
+  search.addEventListener('input', update);
+  update();
+}
+
+// ---------------------------------------------------------------------------
+// Special renderer: hierarchical process data needs a tree rather than a table.
+// ---------------------------------------------------------------------------
+function validNode(node) {
+  return node && typeof node === 'object' && !Array.isArray(node) && ('Id' in node || 'Name' in node);
+}
+function childrenOf(node) {
+  return validNode(node) && Array.isArray(node.Children) ? node.Children : [];
+}
+function appendDetail(parent, label, value) {
+  const detail = createElement('div', 'detail');
+  detail.appendChild(createElement('span', 'label', label + ':'));
+  detail.appendChild(createElement('span', 'mono', displayValue(value)));
+  parent.appendChild(detail);
+}
+function createProcessNode(node, showCommands) {
+  const li = createElement('li', 'node');
+  if (!validNode(node)) {
+    const row = createElement('div', 'node-row invalid');
+    row.appendChild(createElement('span', 'twisty blank', '•'));
+    const info = createElement('div', 'node-info');
+    info.appendChild(createElement('span', 'name', 'Malformed child entry'));
+    appendDetail(info, 'Value', node);
+    row.appendChild(info);
+    li.appendChild(row);
+    return li;
+  }
+
+  const children = childrenOf(node);
+  const hasChildren = children.length > 0;
+  li.dataset.node = 'true';
+  li.dataset.pid = String(node.Id ?? '');
+  const row = createElement('div', 'node-row');
+  const twisty = createElement('button', 'twisty' + (hasChildren ? '' : ' blank'), hasChildren ? '▶' : '•');
+  twisty.type = 'button';
+  twisty.setAttribute('aria-expanded', 'false');
+  twisty.setAttribute('aria-label', hasChildren ? 'Toggle children' : 'No children');
+  row.appendChild(twisty);
+
+  const info = createElement('div', 'node-info');
+  const headline = createElement('div', 'headline');
+  headline.appendChild(createElement('span', 'name', node.Name ?? 'Unnamed process'));
+  headline.appendChild(createElement('span', 'pid', 'PID: ' + (node.Id ?? 'N/A')));
+  headline.appendChild(createElement('span', 'ppid', 'Parent PID: ' + (node.ParentId ?? 'N/A')));
+  if (hasChildren) headline.appendChild(createElement('span', 'badge', `${children.length} child${children.length === 1 ? '' : 'ren'}`));
+  info.appendChild(headline);
+  appendDetail(info, 'Path', node.Path);
+  appendDetail(info, 'User', node.Owner);
+  if (showCommands) {
+    const command = createElement('div', 'cmd');
+    command.appendChild(createElement('span', 'label', 'CommandLine:'));
+    command.appendChild(createElement('span', 'mono', displayValue(node.CommandLine)));
+    info.appendChild(command);
+  }
+  row.appendChild(info);
+  li.appendChild(row);
+
+  if (hasChildren) {
+    const ul = createElement('ul', 'hidden');
+    children.forEach(child => ul.appendChild(createProcessNode(child, showCommands)));
+    li.appendChild(ul);
+    twisty.addEventListener('click', () => setNodeExpanded(li, ul.classList.contains('hidden')));
+  }
+  return li;
+}
+function setNodeExpanded(li, open) {
+  const ul = Array.from(li.children).find(child => child.tagName === 'UL');
+  const row = Array.from(li.children).find(child => child.classList && child.classList.contains('node-row'));
+  const button = row ? row.querySelector('.twisty') : null;
+  if (!ul || !button) return;
+  ul.classList.toggle('hidden', !open);
+  button.textContent = open ? '▼' : '▶';
+  button.setAttribute('aria-expanded', String(open));
+}
+function renderProcessTree(body, meta, data) {
+  const roots = data == null ? [] : (Array.isArray(data) ? data : [data]);
+  let count = 0;
+  const walk = nodes => nodes.forEach(node => { if (validNode(node)) { count++; walk(childrenOf(node)); } });
+  walk(roots);
+  meta.textContent = `${count.toLocaleString()} process nodes`;
+  if (!roots.length) {
+    body.appendChild(createElement('div', 'empty', 'No process information was returned.'));
+    return;
+  }
+
+  const toolbar = createElement('div', 'toolbar');
+  const search = createElement('input');
+  search.type = 'search';
+  search.inputMode = 'numeric';
+  search.placeholder = 'Search exact PID...';
+  search.setAttribute('aria-label', 'Search exact process ID');
+  const searchButton = createElement('button', 'primary', 'Search PID');
+  searchButton.type = 'button';
+  const resetButton = createElement('button', '', 'Reset search');
+  resetButton.type = 'button';
+  const expandButton = createElement('button', '', 'Expand all');
+  expandButton.type = 'button';
+  const collapseButton = createElement('button', '', 'Collapse all');
+  collapseButton.type = 'button';
+  const commandLabel = createElement('label', 'check');
+  const commandCheck = createElement('input');
+  commandCheck.type = 'checkbox';
+  commandLabel.appendChild(commandCheck);
+  commandLabel.appendChild(document.createTextNode(' Show command lines'));
+  toolbar.append(search, searchButton, resetButton, expandButton, collapseButton, commandLabel);
+  body.appendChild(toolbar);
+
+  const tree = createElement('div', 'tree');
+  body.appendChild(tree);
+  function populate() {
+    tree.replaceChildren();
+    const rootList = createElement('ul');
+    roots.forEach(node => rootList.appendChild(createProcessNode(node, commandCheck.checked)));
+    tree.appendChild(rootList);
+  }
+  function allNodes() { return Array.from(tree.querySelectorAll('li[data-node="true"]')); }
+  function collapseAll() { allNodes().forEach(li => setNodeExpanded(li, false)); }
+  function searchPid() {
+    const query = search.value.trim();
+    allNodes().forEach(li => li.querySelector(':scope > .node-row')?.classList.remove('match'));
+    if (!/^\d+$/.test(query)) { setStatus('Enter a numeric PID to search.', 'error'); return; }
+    const matches = allNodes().filter(li => li.dataset.pid === query);
+    if (!matches.length) { setStatus(`PID ${query} was not found.`, 'warn'); return; }
+    collapseAll();
+    matches.forEach(li => {
+      li.querySelector(':scope > .node-row')?.classList.add('match');
+      let parent = li.parentElement;
+      while (parent && parent !== tree) {
+        if (parent.tagName === 'UL') {
+          parent.classList.remove('hidden');
+          const owner = parent.parentElement;
+          if (owner?.matches('li[data-node="true"]')) setNodeExpanded(owner, true);
+        }
+        parent = parent.parentElement;
+      }
+    });
+    matches[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setStatus(`Found ${matches.length} exact match${matches.length === 1 ? '' : 'es'} for PID ${query}.`, 'ok');
+  }
+  searchButton.addEventListener('click', searchPid);
+  search.addEventListener('keydown', event => { if (event.key === 'Enter') searchPid(); });
+  resetButton.addEventListener('click', () => { search.value = ''; populate(); setStatus('PID search cleared.', 'ok'); });
+  expandButton.addEventListener('click', () => allNodes().forEach(li => setNodeExpanded(li, true)));
+  collapseButton.addEventListener('click', collapseAll);
+  commandCheck.addEventListener('change', populate);
+  populate();
+}
+
+function renderReport(report, source) {
+  const container = $('sectionsContainer');
+  container.replaceChildren();
+  const sections = report && report.Sections && typeof report.Sections === 'object' ? report.Sections : null;
+  if (!sections) throw new Error('The JSON does not contain a Sections object.');
+
+  const entries = Object.entries(sections);
+  if (!entries.length) throw new Error('The report contains no sections.');
+  let rendered = 0;
+  entries.forEach(([key, rawSection]) => {
+    const section = normalizeSection(key, rawSection);
+    const card = createSectionCard(section, key);
+    if (section.Status === 'Error' || section.Type === 'error') {
+      card.body.appendChild(createElement('div', 'error-box', section.Error || 'This section could not be collected.'));
+    } else if (section.Type === 'processTree') {
+      renderProcessTree(card.body, card.meta, section.Data);
+    } else if (section.Type === 'text') {
+      renderText(card.body, card.meta, section.Data);
+    } else {
+      // Default behavior: generic searchable table. New table sections require
+      // only a PowerShell collector plus a registry entry.
+      renderTable(card.body, card.meta, section.Data, section.Columns);
+    }
+    container.appendChild(card.panel);
+    rendered++;
+  });
+  renderMetadata(report.Metadata);
+  const computer = report?.Metadata?.ComputerName ? ` on ${report.Metadata.ComputerName}` : '';
+  setStatus(`Loaded ${rendered} report section${rendered === 1 ? '' : 's'} from ${source}${computer}.`, 'ok');
+}
+function renderMetadata(metadata) {
+  if (!metadata || typeof metadata !== 'object') { $('reportMetadata').textContent = ''; return; }
+  const parts = [];
+  if (metadata.ComputerName) parts.push('Computer: ' + metadata.ComputerName);
+  if (metadata.GeneratedAt) parts.push('Generated: ' + metadata.GeneratedAt);
+  if (metadata.GeneratedBy) parts.push('Run as: ' + metadata.GeneratedBy);
+  $('reportMetadata').textContent = parts.join('  |  ');
+}
+function parseAndRender(jsonText, source) {
+  try {
+    const parsed = JSON.parse(jsonText);
+    let report = parsed;
+    // Compatibility with the original process-tree-only JSON export.
+    if (Array.isArray(parsed)) {
+      report = { Metadata: {}, Sections: { ProcessTree: parsed } };
+    } else if (parsed && typeof parsed === 'object' && !parsed.Sections && ('Id' in parsed || 'Name' in parsed)) {
+      report = { Metadata: {}, Sections: { ProcessTree: [parsed] } };
+    }
+    renderReport(report, source);
+  } catch (error) {
+    $('sectionsContainer').replaceChildren();
+    $('reportMetadata').textContent = '';
+    setStatus('Unable to load report: ' + error.message, 'error');
+  }
+}
+
+$('fileInput').addEventListener('change', async event => {
+  const file = event.target.files[0];
+  if (file) parseAndRender(await file.text(), file.name);
+});
+$('renderPaste').addEventListener('click', () => parseAndRender($('jsonText').value, 'pasted JSON'));
+$('clearAll').addEventListener('click', () => {
+  $('fileInput').value = '';
+  $('jsonText').value = '';
+  $('sectionsContainer').replaceChildren();
+  $('reportMetadata').textContent = '';
+  setStatus('Cleared. Load or paste a JSON report, or rerun the PowerShell collector.', '');
+});
+
+const dropZone = $('dropZone');
+['dragenter', 'dragover'].forEach(type => dropZone.addEventListener(type, event => { event.preventDefault(); dropZone.classList.add('drag'); }));
+['dragleave', 'drop'].forEach(type => dropZone.addEventListener(type, event => { event.preventDefault(); dropZone.classList.remove('drag'); }));
+dropZone.addEventListener('drop', async event => {
+  const file = event.dataTransfer.files[0];
+  if (file) parseAndRender(await file.text(), file.name);
+});
+
+// Load the embedded report automatically when this template has been populated.
+const embeddedPayload = $('embeddedData').textContent.trim();
+if (embeddedPayload && !embeddedPayload.startsWith('__REPORT_')) {
+  try {
+    parseAndRender(decodeBase64Utf8(embeddedPayload), 'embedded report');
+  } catch (error) {
+    setStatus('Embedded report could not be decoded: ' + error.message, 'error');
+  }
+} else {
+  setStatus('This is the blank HTML template. Run Windows-System-Report.ps1 to generate a populated report, or load a JSON file above.', 'warn');
+}
+</script>
+</body>
+</html>
