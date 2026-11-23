@@ -1,0 +1,537 @@
+<#
+.SYNOPSIS
+    Creates a self-contained Windows system report by embedding collected data in HTML.
+
+.DESCRIPTION
+    PowerShell 5.1 compatible. Keep this script beside report-template.html.
+    Add new collectors in the COLLECTORS area, then register them in
+    $sectionDefinitions. The HTML automatically displays generic table/text
+    sections; only special visualizations such as ProcessTree need custom JS.
+
+.PARAMETER HtmlTemplatePath
+    HTML template path. Defaults to report-template.html beside this script.
+
+.PARAMETER OutputHtmlPath
+    Generated HTML path. Defaults to Output\Windows-System-Report.html.
+
+.PARAMETER ExportJson
+    Also writes a standalone JSON export beside the HTML report.
+
+.PARAMETER NoOpen
+    Do not automatically open the generated report.
+#>
+[CmdletBinding()]
+param(
+    [string]$HtmlTemplatePath = (Join-Path -Path $PSScriptRoot -ChildPath 'report-template-registry.html'),
+    [string]$OutputHtmlPath = (Join-Path -Path $PSScriptRoot -ChildPath 'Output\Windows-System-Report.html'),
+    [switch]$ExportJson,
+    [switch]$NoOpen
+)
+
+$ErrorActionPreference = 'Stop'
+$placeholder = '__REPORT_DATA_BASE64__'
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+
+# =============================================================================
+# COLLECTORS
+# Add one function for each new data source. A collector should return data;
+# it should not write HTML or modify the report object.
+# =============================================================================
+
+function Get-ProcessTreeData {
+    [CmdletBinding()]
+    param()
+
+    $processes = Get-CimInstance -ClassName Win32_Process -ErrorAction Stop
+    $processMap = @{}
+    $rootProcesses = New-Object 'System.Collections.Generic.List[object]'
+
+    foreach ($process in $processes) {
+        $owner = 'SYSTEM/UNKNOWN'
+        try {
+            $ownerInfo = Invoke-CimMethod -InputObject $process -MethodName GetOwner -ErrorAction Stop
+            if ($null -ne $ownerInfo -and $ownerInfo.ReturnValue -eq 0 -and $ownerInfo.User) {
+                if ($ownerInfo.Domain) {
+                    $owner = '{0}\{1}' -f $ownerInfo.Domain, $ownerInfo.User
+                }
+                else {
+                    $owner = $ownerInfo.User
+                }
+            }
+        }
+        catch {
+            # Protected processes or permission restrictions may block owner lookup.
+        }
+
+        $processMap[$process.ProcessId] = [pscustomobject]@{
+            Id          = $process.ProcessId
+            ParentId    = $process.ParentProcessId
+            Name        = $process.Name
+            Path        = $process.ExecutablePath
+            CommandLine = $process.CommandLine
+            Owner       = $owner
+            Children    = [System.Collections.Generic.List[object]]::new()
+        }
+    }
+
+    foreach ($process in $processMap.Values) {
+        if ($process.ParentId -and $processMap.ContainsKey($process.ParentId)) {
+            $processMap[$process.ParentId].Children.Add($process)
+        }
+        else {
+            $rootProcesses.Add($process)
+        }
+    }
+
+    return $rootProcesses.ToArray()
+}
+
+function Get-RegistryTreeData {
+    [CmdletBinding()]
+    param(
+        [string[]]$Path = @(
+            'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run',
+            'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+            'HKLM:\SYSTEM\CurrentControlSet\Services',
+            'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run'
+        ),
+        [ValidateRange(0, 20)]
+        [int]$MaxDepth = 4
+    )
+
+    function Convert-RegistryKeyToNode {
+        param(
+            [Parameter(Mandatory = $true)]$Key,
+            [Parameter(Mandatory = $true)][int]$Depth,
+            [Parameter(Mandatory = $true)][int]$DepthLimit
+        )
+
+        $values = New-Object 'System.Collections.Generic.List[object]'
+        try {
+            foreach ($valueName in $Key.GetValueNames()) {
+                $displayName = if ([string]::IsNullOrEmpty($valueName)) { '(Default)' } else { $valueName }
+                $kind = 'Unknown'
+                $value = $null
+                try { $kind = [string]$Key.GetValueKind($valueName) } catch {}
+                try { $value = $Key.GetValue($valueName, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } catch { $value = '<Unable to read: {0}>' -f $_.Exception.Message }
+                if ($value -is [byte[]]) { $value = [System.BitConverter]::ToString($value) }
+                elseif ($value -is [array]) { $value = [string]::Join('; ', [string[]]$value) }
+                $values.Add([pscustomobject]@{ Name = $displayName; Type = $kind; Data = $value })
+            }
+        }
+        catch {
+            $values.Add([pscustomobject]@{ Name = '(Error)'; Type = 'Access'; Data = $_.Exception.Message })
+        }
+
+        $children = New-Object 'System.Collections.Generic.List[object]'
+        if ($Depth -lt $DepthLimit) {
+            try {
+                foreach ($child in @(Get-ChildItem -LiteralPath $Key.PSPath -ErrorAction Stop)) {
+                    $children.Add((Convert-RegistryKeyToNode -Key $child -Depth ($Depth + 1) -DepthLimit $DepthLimit))
+                }
+            }
+            catch {
+                $children.Add([pscustomobject]@{ Name = '(Unable to enumerate)'; Path = $Key.Name; Values = @([pscustomobject]@{ Name='(Error)'; Type='Access'; Data=$_.Exception.Message }); Children = @() })
+            }
+        }
+
+        [pscustomobject]@{
+            Name     = $Key.PSChildName
+            Path     = $Key.Name
+            Values   = $values.ToArray()
+            Children = $children.ToArray()
+        }
+    }
+
+    $roots = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($registryPath in $Path) {
+        if (-not (Test-Path -LiteralPath $registryPath)) {
+            $roots.Add([pscustomobject]@{ Name=$registryPath; Path=$registryPath; Values=@([pscustomobject]@{ Name='(Error)'; Type='Missing'; Data='Registry path was not found.' }); Children=@() })
+            continue
+        }
+        try {
+            $key = Get-Item -LiteralPath $registryPath -ErrorAction Stop
+            $roots.Add((Convert-RegistryKeyToNode -Key $key -Depth 0 -DepthLimit $MaxDepth))
+        }
+        catch {
+            $roots.Add([pscustomobject]@{ Name=$registryPath; Path=$registryPath; Values=@([pscustomobject]@{ Name='(Error)'; Type='Access'; Data=$_.Exception.Message }); Children=@() })
+        }
+    }
+    return $roots.ToArray()
+}
+
+function Get-AllUserRegistryTreeData {
+    [CmdletBinding()]
+    param(
+        [string[]]$RelativePath = @(
+            'Software\Microsoft\Windows\CurrentVersion\Run',
+            'Software\Microsoft\Windows\CurrentVersion\RunOnce'
+        ),
+        [ValidateRange(0, 20)]
+        [int]$MaxDepth = 2,
+        [switch]$IncludeSystemProfiles
+    )
+
+    $profileListPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
+    $results = New-Object 'System.Collections.Generic.List[object]'
+
+    foreach ($profile in @(Get-ChildItem -LiteralPath $profileListPath -ErrorAction Stop)) {
+        $sid = $profile.PSChildName
+
+        if (-not $IncludeSystemProfiles -and $sid -in @('S-1-5-18', 'S-1-5-19', 'S-1-5-20')) {
+            continue
+        }
+        if ($sid -notmatch '^S-1-5-21-(\d+-){3}\d+$') {
+            continue
+        }
+
+        $profileInfo = Get-ItemProperty -LiteralPath $profile.PSPath -ErrorAction SilentlyContinue
+        $profileDirectory = [Environment]::ExpandEnvironmentVariables([string]$profileInfo.ProfileImagePath)
+        if ([string]::IsNullOrWhiteSpace($profileDirectory)) { continue }
+
+        $ntUserDat = Join-Path -Path $profileDirectory -ChildPath 'NTUSER.DAT'
+        $hiveAlreadyLoaded = Test-Path -LiteralPath ("Registry::HKEY_USERS\{0}" -f $sid)
+        $temporaryHiveName = 'Report_{0}' -f ($sid -replace '-', '_')
+        $hiveRoot = $sid
+        $loadedTemporarily = $false
+
+        try {
+            if (-not $hiveAlreadyLoaded) {
+                if (-not (Test-Path -LiteralPath $ntUserDat -PathType Leaf)) {
+                    Write-Warning "Skipping $sid because NTUSER.DAT was not found at $ntUserDat"
+                    continue
+                }
+
+                $loadOutput = & reg.exe load ("HKU\{0}" -f $temporaryHiveName) $ntUserDat 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning ("Unable to load registry hive for {0}: {1}" -f $sid, ($loadOutput -join ' '))
+                    continue
+                }
+
+                $hiveRoot = $temporaryHiveName
+                $loadedTemporarily = $true
+            }
+
+            $children = New-Object 'System.Collections.Generic.List[object]'
+            foreach ($subPath in $RelativePath) {
+                $registryPath = 'Registry::HKEY_USERS\{0}\{1}' -f $hiveRoot, $subPath.TrimStart('\')
+                if (-not (Test-Path -LiteralPath $registryPath)) { continue }
+
+                foreach ($node in @(Get-RegistryTreeData -Path $registryPath -MaxDepth $MaxDepth)) {
+                    # Replace the temporary hive name with the user's real SID in displayed paths.
+                    if ($loadedTemporarily) {
+                        $node.Path = ([string]$node.Path).Replace($temporaryHiveName, $sid)
+                    }
+                    $children.Add($node)
+                }
+            }
+
+            $profileName = Split-Path -Path $profileDirectory -Leaf
+            $results.Add([pscustomobject]@{
+                Name = $profileName
+                Path = 'HKEY_USERS\{0}' -f $sid
+                Values = @(
+                    [pscustomobject]@{ Name = 'SID'; Type = 'String'; Data = $sid }
+                    [pscustomobject]@{ Name = 'ProfilePath'; Type = 'String'; Data = $profileDirectory }
+                    [pscustomobject]@{ Name = 'HiveState'; Type = 'String'; Data = $(if ($hiveAlreadyLoaded) { 'Already loaded' } else { 'Temporarily loaded' }) }
+                )
+                Children = $children.ToArray()
+            })
+        }
+        finally {
+            if ($loadedTemporarily) {
+                [GC]::Collect()
+                [GC]::WaitForPendingFinalizers()
+                $unloadOutput = & reg.exe unload ("HKU\{0}" -f $temporaryHiveName) 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning ("Unable to unload temporary hive for {0}: {1}" -f $sid, ($unloadOutput -join ' '))
+                }
+            }
+        }
+    }
+
+    return $results.ToArray()
+}
+
+function Get-NetstatData {
+    [CmdletBinding()]
+    param()
+
+    $netstatExe = Join-Path -Path $env:SystemRoot -ChildPath 'System32\netstat.exe'
+    if (-not (Test-Path -LiteralPath $netstatExe -PathType Leaf)) {
+        throw "Unable to find netstat.exe at: $netstatExe"
+    }
+
+    $lines = @(& $netstatExe -ano 2>&1)
+    if ($lines.Count -eq 0) {
+        return '(netstat returned no output)'
+    }
+
+    $stringLines = @($lines | ForEach-Object { [string]$_ })
+    return [string]::Join([Environment]::NewLine, [string[]]$stringLines)
+}
+
+function Get-ServiceData {
+    [CmdletBinding()]
+    param()
+
+    Get-CimInstance -ClassName Win32_Service -ErrorAction Stop |
+        Select-Object Name, DisplayName, State, StartMode, ProcessId
+}
+
+# Example collector. It is disabled in $sectionDefinitions by default.
+function Get-NetworkAdapterData {
+    [CmdletBinding()]
+    param()
+
+    Get-NetAdapter -ErrorAction Stop |
+        Select-Object Name, InterfaceDescription, Status, MacAddress, LinkSpeed
+}
+
+# Example collector. It is disabled in $sectionDefinitions by default.
+function Get-ScheduledTaskData {
+    [CmdletBinding()]
+    param()
+
+    if (-not (Get-Command -Name Get-ScheduledTask -ErrorAction SilentlyContinue)) {
+        throw 'Get-ScheduledTask is not available on this computer.'
+    }
+
+    Get-ScheduledTask -ErrorAction Stop |
+        Select-Object TaskPath, TaskName, State
+}
+
+# =============================================================================
+# SECTION REGISTRY
+# This is the main place to enable, disable, or add report sections.
+#
+# Type options:
+#   processTree = special expandable process hierarchy
+#   registryTree = special expandable Windows Registry hierarchy
+#   text         = searchable preformatted text (good for command output)
+#   table       = automatically generated searchable HTML table
+#
+# To add a standard section:
+#   1. Create a Get-YourData function above.
+#   2. Add a definition below with Key, Title, Description, Type, Enabled,
+#      Collector, and (for tables) Columns.
+#   3. Set Enabled = $true.
+# No HTML changes are required for Type 'table' or 'text'.
+# =============================================================================
+
+$sectionDefinitions = @(
+    [pscustomobject]@{
+        Key = 'ProcessTree'
+        Title = 'Process Tree'
+        Description = 'Expandable process hierarchy with PID, parent PID, path, owner, and command line.'
+        Type = 'processTree'
+        Enabled = $true
+        Collector = { Get-ProcessTreeData }
+        Columns = @()
+    },
+    [pscustomobject]@{
+        Key = 'SystemRegistryTree'
+        Title = 'System Registry'
+        Description = 'Machine-wide registry keys and values from HKEY_LOCAL_MACHINE.'
+        Type = 'registryTree'
+        Enabled = $true
+        Collector = {
+            Get-RegistryTreeData -Path @(
+                'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run',
+                'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce',
+                'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+                'HKLM:\SYSTEM\CurrentControlSet\Services'
+            ) -MaxDepth 2
+        }
+        Columns = @()
+    },
+    [pscustomobject]@{
+        Key = 'UserRegistryTree'
+        Title = 'User Registry'
+        Description = 'Per-user registry keys and values from loaded or temporarily loaded NTUSER.DAT hives.'
+        Type = 'registryTree'
+        Enabled = $true
+        Collector = {
+            Get-AllUserRegistryTreeData -RelativePath @(
+                'Software\Microsoft\Windows\CurrentVersion\Run',
+                'Software\Microsoft\Windows\CurrentVersion\RunOnce'
+            ) -MaxDepth 2
+        }
+        Columns = @()
+    },
+    [pscustomobject]@{
+        Key = 'Netstat'
+        Title = 'Network Connections (netstat -ano)'
+        Description = 'TCP/UDP endpoints, listening ports, numeric addresses, and owning process IDs.'
+        Type = 'text'
+        Enabled = $true
+        Collector = { Get-NetstatData }
+        Columns = @()
+    },
+    [pscustomobject]@{
+        Key = 'Services'
+        Title = 'Windows Services'
+        Description = 'Service name, display name, state, startup mode, and associated process ID.'
+        Type = 'table'
+        Enabled = $true
+        Collector = { Get-ServiceData }
+        Columns = @(
+            [pscustomobject]@{ Key = 'Name'; Label = 'Service Name' },
+            [pscustomobject]@{ Key = 'DisplayName'; Label = 'Display Name' },
+            [pscustomobject]@{ Key = 'State'; Label = 'State' },
+            [pscustomobject]@{ Key = 'StartMode'; Label = 'Start Mode' },
+            [pscustomobject]@{ Key = 'ProcessId'; Label = 'PID' }
+        )
+    },
+    [pscustomobject]@{
+        Key = 'NetworkAdapters'
+        Title = 'Network Adapters'
+        Description = 'Example section. Enable it to collect adapter status and link information.'
+        Type = 'table'
+        Enabled = $false
+        Collector = { Get-NetworkAdapterData }
+        Columns = @(
+            [pscustomobject]@{ Key = 'Name'; Label = 'Name' },
+            [pscustomobject]@{ Key = 'InterfaceDescription'; Label = 'Interface' },
+            [pscustomobject]@{ Key = 'Status'; Label = 'Status' },
+            [pscustomobject]@{ Key = 'MacAddress'; Label = 'MAC Address' },
+            [pscustomobject]@{ Key = 'LinkSpeed'; Label = 'Link Speed' }
+        )
+    },
+    [pscustomobject]@{
+        Key = 'ScheduledTasks'
+        Title = 'Scheduled Tasks'
+        Description = 'Example section. Enable it to list registered scheduled tasks.'
+        Type = 'table'
+        Enabled = $false
+        Collector = { Get-ScheduledTaskData }
+        Columns = @(
+            [pscustomobject]@{ Key = 'TaskPath'; Label = 'Task Path' },
+            [pscustomobject]@{ Key = 'TaskName'; Label = 'Task Name' },
+            [pscustomobject]@{ Key = 'State'; Label = 'State' }
+        )
+    }
+)
+
+# Validate the template before spending time collecting system information.
+if (-not (Test-Path -LiteralPath $HtmlTemplatePath -PathType Leaf)) {
+    throw "HTML template not found: $HtmlTemplatePath"
+}
+$htmlTemplate = [System.IO.File]::ReadAllText($HtmlTemplatePath)
+$placeholderCount = [regex]::Matches($htmlTemplate, [regex]::Escape($placeholder)).Count
+if ($placeholderCount -ne 1) {
+    throw "HTML template must contain exactly one data placeholder ($placeholder). Found: $placeholderCount"
+}
+
+Write-Host 'Building Windows system report...' -ForegroundColor Cyan
+$sections = [ordered]@{}
+
+foreach ($definition in $sectionDefinitions) {
+    if (-not $definition.Enabled) { continue }
+
+    Write-Host ("  Collecting: {0}" -f $definition.Title) -ForegroundColor Cyan
+
+    try {
+        $collector = $definition.Collector
+        if ($definition.Type -in @('table', 'processTree', 'registryTree')) {
+            $collectedData = @(& $collector)
+        }
+        else {
+            $collectedData = & $collector
+        }
+
+        $section = [ordered]@{
+            Title       = $definition.Title
+            Description = $definition.Description
+            Type        = $definition.Type
+            Status      = 'Success'
+            Data        = $collectedData
+        }
+        if ($definition.Columns -and $definition.Columns.Count -gt 0) {
+            $section.Columns = @($definition.Columns)
+        }
+    }
+    catch {
+        $section = [ordered]@{
+            Title       = $definition.Title
+            Description = $definition.Description
+            Type        = 'error'
+            Status      = 'Error'
+            Error       = $_.Exception.Message
+            Data        = $null
+        }
+        Write-Warning ("  Section '{0}' failed: {1}" -f $definition.Key, $_.Exception.Message)
+    }
+
+    $sections[$definition.Key] = $section
+}
+
+$reportData = [ordered]@{
+    SchemaVersion = 2
+    Metadata      = [ordered]@{
+        ComputerName = $env:COMPUTERNAME
+        GeneratedAt  = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss zzz')
+        GeneratedBy  = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    }
+    Sections      = $sections
+}
+
+$jsonOutput = ConvertTo-Json -InputObject $reportData -Depth 100
+$jsonBase64 = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($jsonOutput))
+
+# Replace only the first occurrence: the template has one actual data slot.
+$placeholderIndex = $htmlTemplate.IndexOf($placeholder, [System.StringComparison]::Ordinal)
+if ($placeholderIndex -lt 0) {
+    throw "HTML template data slot not found: $placeholder"
+}
+$htmlOutput = $htmlTemplate.Substring(0, $placeholderIndex) +
+    $jsonBase64 +
+    $htmlTemplate.Substring($placeholderIndex + $placeholder.Length)
+
+$fullOutputPath = [System.IO.Path]::GetFullPath($OutputHtmlPath)
+$outputDirectory = [System.IO.Path]::GetDirectoryName($fullOutputPath)
+if (-not (Test-Path -LiteralPath $outputDirectory -PathType Container)) {
+    New-Item -Path $outputDirectory -ItemType Directory -Force | Out-Null
+}
+[System.IO.File]::WriteAllText($fullOutputPath, $htmlOutput, $utf8NoBom)
+
+# Verify that the embedded payload can be decoded and parsed as JSON.
+$writtenHtml = [System.IO.File]::ReadAllText($fullOutputPath)
+$embeddedMatch = [regex]::Match(
+    $writtenHtml,
+    '<script\s+id=["'']embeddedData["''][^>]*>(.*?)</script>',
+    [System.Text.RegularExpressions.RegexOptions]::Singleline
+)
+if (-not $embeddedMatch.Success) {
+    throw 'Verification failed: embeddedData script element was not found.'
+}
+$writtenPayload = $embeddedMatch.Groups[1].Value.Trim()
+if ([string]::IsNullOrWhiteSpace($writtenPayload) -or $writtenPayload -eq $placeholder) {
+    throw 'Verification failed: embedded data slot is empty or was not replaced.'
+}
+$verifiedJson = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($writtenPayload))
+$null = ConvertFrom-Json -InputObject $verifiedJson -ErrorAction Stop
+
+Write-Host ''
+Write-Host 'HTML report created and verified:' -ForegroundColor Green
+Write-Host "  $fullOutputPath" -ForegroundColor White
+Write-Host ("  Sections included: {0}" -f $sections.Count) -ForegroundColor Gray
+foreach ($key in $sections.Keys) {
+    $state = $sections[$key].Status
+    Write-Host ("    {0}: {1}" -f $key, $state) -ForegroundColor Gray
+}
+Write-Host ("  Embedded payload: {0:N0} Base64 characters" -f $jsonBase64.Length) -ForegroundColor Gray
+
+if ($ExportJson) {
+    $jsonPath = [System.IO.Path]::ChangeExtension($fullOutputPath, '.json')
+    [System.IO.File]::WriteAllText($jsonPath, $jsonOutput, $utf8NoBom)
+    Write-Host "JSON export created: $jsonPath" -ForegroundColor Green
+}
+
+if (-not $NoOpen) {
+    Write-Host 'Opening the generated report...' -ForegroundColor Cyan
+    Start-Process -FilePath $fullOutputPath
+}
+else {
+    Write-Host 'Automatic browser opening skipped (-NoOpen was specified).' -ForegroundColor Cyan
+}
