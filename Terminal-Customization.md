@@ -15,7 +15,7 @@ You can customize you terminal how you want
                 "hidden": false,
                 "name": "Windows PowerShell",
                 "opacity": 80,
-                "backgroundImage": "C:\\Users\\USER\\\\Pictures\\ANY-IMAGE.jpeg",
+                "backgroundImage": "C:\\Users\\USER\\Pictures\\ANY-IMAGE.jpeg",
                 "backgroundImageAlignment": "center",
                 "backgroundImageOpacity": 0.3,
                 "backgroundImageStretchMode": "uniformToFill"
