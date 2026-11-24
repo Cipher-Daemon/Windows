@@ -88,3 +88,49 @@ overflow-wrap: break-word;
 ```
 
 This preserves readable headers while allowing long registry data to wrap after the table reaches 900 pixels.
+
+
+## Fic unrenderable Triangles
+
+from copilot
+
+---
+
+Easiest fix: use HTML entities
+
+Replace:
+
+```JavaScript
+hasChildren ? '▶' : '•'
+```
+with:
+
+```JavaScript
+hasChildren ? '\u25B6' : '\u2022'
+```
+and:
+
+```JavaScript
+button.textContent = open ? '▼' : '▶';
+```
+
+with:
+
+```JavaScript
+button.textContent = open ? '\u25BC' : '\u25B6';
+```
+This avoids copy/paste encoding problems.
+
+Better fix: use ASCII text
+
+For maximum compatibility:
+
+```JavaScript
+hasChildren ? '+' : '-'
+```
+and
+
+```JavaScript
+button.textContent = open ? '-' : '+';
+```
+No Unicode at all.
